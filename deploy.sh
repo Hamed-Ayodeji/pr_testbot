@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This script is used to deploy a Docker container for a specific branch and PR.
+# This script is used to deploy a Docker or Docker Compose application for a specific branch and PR.
 
 # Check if the script is run as root
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -17,11 +17,13 @@ fi
 # Variables
 BRANCH_NAME=$1
 PR_NUMBER=$2
-REMOTE_HOST="91.229.239.118"
-REPO_URL="https://github.com/neyo55/hng-team-4-docker-app.git"
-REMOTE_DIR="/tmp/team4-$BRANCH_NAME"
+REMOTE_HOST="34.239.213.21"
+REPO_URL="https://github.com/Hamed-Ayodeji/pr_testbot.git"
+REMOTE_DIR="/tmp/pr_testbot-$BRANCH_NAME"
 TIMESTAMP=$(date +%s)
 CONTAINER_INFO_FILE="/tmp/container_info_${BRANCH_NAME}_${PR_NUMBER}_${TIMESTAMP}.txt"
+COMPOSE_FILE_YML="docker-compose.yml"
+COMPOSE_FILE_YAML="docker-compose.yaml"
 
 # Function to find a random available port in the range 4000-7000
 find_random_port() {
@@ -76,18 +78,27 @@ if ! git pull origin $BRANCH_NAME; then
   exit 1
 fi
 
-echo "Building Docker image for container $CONTAINER_NAME..."
-# Build the Docker image with a unique tag
-if ! docker build -t $CONTAINER_NAME .; then
-  echo "Docker build failed"
-  exit 1
-fi
+if [ -f "$COMPOSE_FILE_YML" ] || [ -f "$COMPOSE_FILE_YAML" ]; then
+  echo "Found docker-compose file, using Docker Compose for deployment..."
+  # Deploy using Docker Compose
+  if ! docker-compose up -d; then
+    echo "Docker Compose up failed"
+    exit 1
+  fi
+else
+  echo "No docker-compose file found, using Docker for deployment..."
+  # Build the Docker image with a unique tag
+  if ! docker build -t $CONTAINER_NAME .; then
+    echo "Docker build failed"
+    exit 1
+  fi
 
-echo "Running Docker container $CONTAINER_NAME on port $PORT..."
-# Run the Docker container with the random port and unique container name
-if ! docker run -d -p $PORT:80 --name $CONTAINER_NAME $CONTAINER_NAME; then
-  echo "Docker run failed"
-  exit 1
+  echo "Running Docker container $CONTAINER_NAME on port $PORT..."
+  # Run the Docker container with the random port and unique container name
+  if ! docker run -d -p $PORT:80 --name $CONTAINER_NAME $CONTAINER_NAME; then
+    echo "Docker run failed"
+    exit 1
+  fi
 fi
 
 # Save container name and port information to a file for cleanup
