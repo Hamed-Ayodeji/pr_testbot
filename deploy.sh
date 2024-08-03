@@ -43,9 +43,9 @@ if [ -d "$REMOTE_DIR" ]; then
 fi
 
 echo "Cloning the repository..."
-# Clone the repository
-if ! git clone "$REPO_URL" "$REMOTE_DIR"; then
-  echo "Failed to clone the repository"
+# Clone the repository and checkout the branch
+if ! git clone --branch "$BRANCH_NAME" "$REPO_URL" "$REMOTE_DIR"; then
+  echo "Failed to clone the repository or checkout branch $BRANCH_NAME"
   exit 1
 fi
 
@@ -53,20 +53,6 @@ echo "Changing directory to $REMOTE_DIR..."
 # Navigate to the project directory
 if ! cd "$REMOTE_DIR"; then
   echo "Failed to change directory to $REMOTE_DIR"
-  exit 1
-fi
-
-echo "Checking out branch $BRANCH_NAME..."
-# Checkout the branch
-if ! git checkout $BRANCH_NAME; then
-  echo "Failed to checkout branch $BRANCH_NAME"
-  exit 1
-fi
-
-echo "Pulling latest changes for branch $BRANCH_NAME..."
-# Pull the latest changes from the branch
-if ! git pull origin $BRANCH_NAME; then
-  echo "Git pull failed"
   exit 1
 fi
 

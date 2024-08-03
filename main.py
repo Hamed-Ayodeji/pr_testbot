@@ -88,7 +88,7 @@ def webhook():
     if 'pull_request' in data:
         pr_number = data['pull_request']['number']
         repo_name = data['repository']['full_name']
-        repo_url = data['repository']['clone_url']
+        repo_url = data['pull_request']['head']['repo']['clone_url']
         branch_name = data['pull_request']['head']['ref']
         installation_id = data['installation']['id']
         comment_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_number}/comments"
