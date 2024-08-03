@@ -30,32 +30,12 @@ fi
 BRANCH_NAME=$1
 PR_NUMBER=$2
 REPO_URL=$3
-REMOTE_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+REMOTE_HOST=$(curl -s https://api.ipify.org)
 REMOTE_DIR="/tmp/pr_testbot-$BRANCH_NAME"
 TIMESTAMP=$(date +%s)
 CONTAINER_INFO_FILE="/tmp/container_info_${BRANCH_NAME}_${PR_NUMBER}_${TIMESTAMP}.txt"
 COMPOSE_FILE_YML="docker-compose.yml"
 COMPOSE_FILE_YAML="docker-compose.yaml"
-
-# Function to find a random available port in the range 4000-7000
-find_random_port() {
-    while true; do
-        # Generate a random port between 4000 and 7000
-        PORT=$((4000 + RANDOM % 3001))
-
-        # Check if the port is available
-        if ! lsof -i:$PORT >/dev/null; then
-            break
-        fi
-    done
-    echo $PORT
-}
-
-# Get an available random port
-PORT=$(find_random_port)
-
-# Unique container name based on branch, port, and PR number
-CONTAINER_NAME="container_${BRANCH_NAME}_${PR_NUMBER}_${PORT}"
 
 # Remove existing directory if it exists to avoid conflicts
 if [ -d "$REMOTE_DIR" ]; then
@@ -97,8 +77,36 @@ if [ -f "$COMPOSE_FILE_YML" ] || [ -f "$COMPOSE_FILE_YAML" ]; then
     echo "Docker Compose up failed"
     exit 1
   fi
+
+  # Extracting services and ports from docker-compose
+  SERVICES=$(docker-compose config --services)
+  for SERVICE in $SERVICES; do
+    PORT=$(docker-compose port $SERVICE 80 | awk -F: '{print $2}')
+    echo "Service $SERVICE running on port $PORT"
+    echo "Deployment complete: http://$REMOTE_HOST:$PORT"
+  done
 else
   echo "No docker-compose file found, using Docker for deployment..."
+  # Function to find a random available port in the range 4000-7000
+  find_random_port() {
+      while true; do
+          # Generate a random port between 4000 and 7000
+          PORT=$((4000 + RANDOM % 3001))
+
+          # Check if the port is available
+          if ! lsof -i:$PORT >/dev/null; then
+              break
+          fi
+      done
+      echo $PORT
+  }
+
+  # Get an available random port
+  PORT=$(find_random_port)
+
+  # Unique container name based on branch, port, and PR number
+  CONTAINER_NAME="container_${BRANCH_NAME}_${PR_NUMBER}_${PORT}"
+
   # Build the Docker image with a unique tag
   if ! docker build -t $CONTAINER_NAME .; then
     echo "Docker build failed"
@@ -111,11 +119,11 @@ else
     echo "Docker run failed"
     exit 1
   fi
+
+  # Save container name and port information to a file for cleanup
+  echo "$CONTAINER_NAME $PORT" > $CONTAINER_INFO_FILE
+
+  # Output the container name and deployment link
+  echo "Container name: $CONTAINER_NAME"
+  echo "Deployment complete: http://$REMOTE_HOST:$PORT"
 fi
-
-# Save container name and port information to a file for cleanup
-echo "$CONTAINER_NAME $PORT" > $CONTAINER_INFO_FILE
-
-# Output the container name and deployment link
-echo "Container name: $CONTAINER_NAME"
-echo "Deployment complete: http://$REMOTE_HOST:$PORT"

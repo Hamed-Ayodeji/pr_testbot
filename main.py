@@ -219,19 +219,17 @@ def send_email(to_address, subject, body, attachment_path):
 
     msg.attach(MIMEText(body, 'plain'))
 
-    attachment = open(attachment_path, 'rb')
-    part = MIMEBase('application', 'octet-stream')
-    part.set_payload(attachment.read())
-    encoders.encode_base64(part)
-    part.add_header('Content-Disposition', f'attachment; filename= {os.path.basename(attachment_path)}')
-    msg.attach(part)
+    with open(attachment_path, 'rb') as attachment:
+        part = MIMEBase('application', 'octet-stream')
+        part.set_payload(attachment.read())
+        encoders.encode_base64(part)
+        part.add_header('Content-Disposition', f'attachment; filename= {os.path.basename(attachment_path)}')
+        msg.attach(part)
 
-    server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-    server.starttls()
-    server.login(from_address, SMTP_PASSWORD)
-    text = msg.as_string()
-    server.sendmail(from_address, to_address, text)
-    server.quit()
+    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        server.starttls()
+        server.login(from_address, SMTP_PASSWORD)
+        server.sendmail(from_address, to_address, msg.as_string())
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
