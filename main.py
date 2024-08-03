@@ -88,10 +88,13 @@ def webhook():
     if 'pull_request' in data:
         pr_number = data['pull_request']['number']
         repo_name = data['repository']['full_name']
+        repo_url = data['repository']['clone_url']
         branch_name = data['pull_request']['head']['ref']
         installation_id = data['installation']['id']
         comment_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_number}/comments"
         access_token = None
+
+        logger.info(f"Received webhook for PR #{pr_number} on branch '{branch_name}'")
 
         if action in ['opened', 'synchronize', 'reopened']:
             try:
@@ -101,8 +104,8 @@ def webhook():
                 # Notify stakeholders (comment on the PR)
                 notify_stakeholders(comment_url, "Deployment started for this pull request.", access_token)
 
-                # Run the deployment script with the branch name and PR number
-                container_name, deployment_link, log_file_path = run_deployment_script(branch_name, pr_number, comment_url, access_token)
+                # Run the deployment script with the branch name, PR number, and repository URL
+                container_name, deployment_link, log_file_path = run_deployment_script(branch_name, pr_number, repo_url, comment_url, access_token)
 
                 # Notify stakeholders with the result
                 if deployment_link:
@@ -159,12 +162,12 @@ def notify_stakeholders(comment_url, message, access_token, details=None):
     if response.status_code != 201:
         logger.error(f"Failed to comment on PR: {response.json()}")
 
-def run_deployment_script(branch_name, pr_number, comment_url, access_token):
+def run_deployment_script(branch_name, pr_number, repo_url, comment_url, access_token):
     log_file_path = f'/tmp/deployment_log_{branch_name}_{pr_number}.txt'
     details = {}
     with open(log_file_path, 'w') as log_file:
         try:
-            result = subprocess.run(['./deploy.sh', branch_name, str(pr_number)], check=True, capture_output=True, text=True)
+            result = subprocess.run(['./deploy.sh', branch_name, str(pr_number), repo_url], check=True, capture_output=True, text=True)
             log_file.write(result.stdout)
             logger.info(result.stdout)
 

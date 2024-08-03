@@ -14,11 +14,23 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
+# Check if the PR number is provided
+if [ -z "$2" ]; then
+  echo "PR number not provided."
+  exit 1
+fi
+
+# Check if the repository URL is provided
+if [ -z "$3" ]; then
+  echo "Repository URL not provided."
+  exit 1
+fi
+
 # Variables
 BRANCH_NAME=$1
 PR_NUMBER=$2
-REMOTE_HOST="34.239.213.21"
-REPO_URL="https://github.com/Hamed-Ayodeji/pr_testbot.git"
+REPO_URL=$3
+REMOTE_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
 REMOTE_DIR="/tmp/pr_testbot-$BRANCH_NAME"
 TIMESTAMP=$(date +%s)
 CONTAINER_INFO_FILE="/tmp/container_info_${BRANCH_NAME}_${PR_NUMBER}_${TIMESTAMP}.txt"
