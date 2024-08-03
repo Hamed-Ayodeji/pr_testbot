@@ -210,7 +210,7 @@ def run_cleanup_script(branch_name, pr_number, comment_url, access_token):
             notify_stakeholders(comment_url, "Cleanup process details:", access_token, details)
             return log_file_path
 
-def send_email(to_address, subject, body, attachment_path):
+def send_email(to_address, subject, body, attachment_path, retries=3, retry_delay=5):
     from_address = SMTP_USERNAME
     msg = MIMEMultipart()
     msg['From'] = from_address
@@ -219,17 +219,33 @@ def send_email(to_address, subject, body, attachment_path):
 
     msg.attach(MIMEText(body, 'plain'))
 
-    with open(attachment_path, 'rb') as attachment:
-        part = MIMEBase('application', 'octet-stream')
-        part.set_payload(attachment.read())
-        encoders.encode_base64(part)
-        part.add_header('Content-Disposition', f'attachment; filename= {os.path.basename(attachment_path)}')
-        msg.attach(part)
+    try:
+        with open(attachment_path, 'rb') as attachment:
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(attachment.read())
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', f'attachment; filename= {os.path.basename(attachment_path)}')
+            msg.attach(part)
+    except Exception as e:
+        logger.error(f"Failed to attach file: {e}")
+        return False
 
-    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-        server.starttls()
-        server.login(from_address, SMTP_PASSWORD)
-        server.sendmail(from_address, to_address, msg.as_string())
+    attempt = 0
+    while attempt < retries:
+        try:
+            with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10) as server:
+                server.starttls()
+                server.login(from_address, SMTP_PASSWORD)
+                server.sendmail(from_address, to_address, msg.as_string())
+                logger.info("Email sent successfully")
+                return True
+        except (smtplib.SMTPException, ConnectionError) as e:
+            attempt += 1
+            logger.error(f"Failed to send email, attempt {attempt} of {retries}: {e}")
+            time.sleep(retry_delay)
+
+    logger.error("All attempts to send email failed")
+    return False
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
