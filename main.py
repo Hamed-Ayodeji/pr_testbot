@@ -91,6 +91,7 @@ def webhook():
         branch_name = data['pull_request']['head']['ref']
         installation_id = data['installation']['id']
         comment_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_number}/comments"
+        access_token = None
 
         if action in ['opened', 'synchronize', 'reopened']:
             try:
@@ -116,16 +117,19 @@ def webhook():
                 return jsonify({'message': 'Deployment processed'}), 200
             except Exception as e:
                 logger.error(f"Deployment failed: {e}")
-                notify_stakeholders(comment_url, f"Deployment failed: {e}", access_token)
+                if access_token:
+                    notify_stakeholders(comment_url, f"Deployment failed: {e}", access_token)
                 return jsonify({'message': 'Deployment failed'}), 500
 
         elif action == 'closed':
             try:
+                # Get installation access token
+                access_token = get_installation_access_token(installation_id)
+
                 # Pull request closed, trigger cleanup regardless of merge status
                 log_file_path = run_cleanup_script(branch_name, pr_number, comment_url, access_token)
                 
                 # Notify stakeholders about the cleanup
-                access_token = get_installation_access_token(installation_id)
                 notify_stakeholders(comment_url, "Cleanup completed for this pull request.", access_token)
 
                 # Send cleanup log via email
@@ -134,7 +138,8 @@ def webhook():
                 return jsonify({'message': 'Cleanup processed'}), 200
             except Exception as e:
                 logger.error(f"Cleanup failed: {e}")
-                notify_stakeholders(comment_url, f"Cleanup failed: {e}", access_token)
+                if access_token:
+                    notify_stakeholders(comment_url, f"Cleanup failed: {e}", access_token)
                 return jsonify({'message': 'Cleanup failed'}), 500
 
     return jsonify({'message': 'No action taken'}), 200
