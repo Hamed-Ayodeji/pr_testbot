@@ -90,18 +90,18 @@ def webhook():
         repo_name = data['repository']['full_name']
         branch_name = data['pull_request']['head']['ref']
         installation_id = data['installation']['id']
+        comment_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_number}/comments"
 
         if action in ['opened', 'synchronize', 'reopened']:
             try:
                 # Get installation access token
                 access_token = get_installation_access_token(installation_id)
-                comment_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_number}/comments"
 
                 # Notify stakeholders (comment on the PR)
                 notify_stakeholders(comment_url, "Deployment started for this pull request.", access_token)
 
                 # Run the deployment script with the branch name and PR number
-                container_name, deployment_link, log_file_path = run_deployment_script(branch_name, pr_number)
+                container_name, deployment_link, log_file_path = run_deployment_script(branch_name, pr_number, comment_url, access_token)
 
                 # Notify stakeholders with the result
                 if deployment_link:
@@ -116,16 +116,16 @@ def webhook():
                 return jsonify({'message': 'Deployment processed'}), 200
             except Exception as e:
                 logger.error(f"Deployment failed: {e}")
+                notify_stakeholders(comment_url, f"Deployment failed: {e}", access_token)
                 return jsonify({'message': 'Deployment failed'}), 500
 
         elif action == 'closed':
             try:
                 # Pull request closed, trigger cleanup regardless of merge status
-                log_file_path = run_cleanup_script(branch_name, pr_number)
+                log_file_path = run_cleanup_script(branch_name, pr_number, comment_url, access_token)
                 
                 # Notify stakeholders about the cleanup
                 access_token = get_installation_access_token(installation_id)
-                comment_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_number}/comments"
                 notify_stakeholders(comment_url, "Cleanup completed for this pull request.", access_token)
 
                 # Send cleanup log via email
@@ -134,6 +134,7 @@ def webhook():
                 return jsonify({'message': 'Cleanup processed'}), 200
             except Exception as e:
                 logger.error(f"Cleanup failed: {e}")
+                notify_stakeholders(comment_url, f"Cleanup failed: {e}", access_token)
                 return jsonify({'message': 'Cleanup failed'}), 500
 
     return jsonify({'message': 'No action taken'}), 200
@@ -153,7 +154,7 @@ def notify_stakeholders(comment_url, message, access_token, details=None):
     if response.status_code != 201:
         logger.error(f"Failed to comment on PR: {response.json()}")
 
-def run_deployment_script(branch_name, pr_number):
+def run_deployment_script(branch_name, pr_number, comment_url, access_token):
     log_file_path = f'/tmp/deployment_log_{branch_name}_{pr_number}.txt'
     details = {}
     with open(log_file_path, 'w') as log_file:
@@ -184,7 +185,7 @@ def run_deployment_script(branch_name, pr_number):
             notify_stakeholders(comment_url, "Deployment process details:", access_token, details)
             return None, None, log_file_path
 
-def run_cleanup_script(branch_name, pr_number):
+def run_cleanup_script(branch_name, pr_number, comment_url, access_token):
     log_file_path = f'/tmp/cleanup_log_{branch_name}_{pr_number}.txt'
     details = {}
     with open(log_file_path, 'w') as log_file:
